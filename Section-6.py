@@ -148,7 +148,7 @@ def verify(public, msg, signature):
     if len(public) != 32:
         raise Exception("Bad public key length")
     if len(signature) != 64:
-        Exception("Bad signature length")
+        raise Exception("Bad signature length")
     A = point_decompress(public)
     if not A:
         return False
@@ -206,5 +206,18 @@ assert sign(sk[:31] + b'0', msg) != sig
 assert verify(pk, msg + b'0', sig) == False
 assert verify(pk[:31] + b'0', msg, sig) == False
 assert verify(pk, msg, sig[:63] + b'0') == False
+
+try:
+    verify(pk[:31], msg, sig)
+    raise Exception("This exception should not be raised")
+except Exception as E:
+    assert str(E) == "Bad public key length"
+
+try:
+    verify(pk, msg, sig[:63])
+    raise Exception("This exception should not be raised")
+except Exception as E:
+    assert str(E) == "Bad signature length"
+
 
 print("All tests passed.")
