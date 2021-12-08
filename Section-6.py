@@ -162,3 +162,49 @@ def verify(public, msg, signature):
     sB = point_mul(s, G)
     hA = point_mul(h, A)
     return point_equal(sB, point_add(R, hA))
+
+## Basic testing
+
+import binascii
+
+# Section 7.1
+# -----TEST 1
+
+sk_hex = b'\
+9d61b19deffd5a60ba844af492ec2cc4\
+4449c5697b326919703bac031cae7f60\
+'
+
+pk_hex = b'\
+d75a980182b10ab7d54bfed3c964073a\
+0ee172f3daa62325af021a68f707511a\
+'
+
+msg = b''
+
+sig_hex = b'\
+e5564300c360ac729086e2cc806e828a\
+84877f1eb8e5d974d873e06522490155\
+5fb8821590a33bacc61e39701cf9b46b\
+d25bf5f0595bbe24655141438e7a100b\
+'
+
+sk = binascii.unhexlify(sk_hex)
+pk = binascii.unhexlify(pk_hex)
+sig = binascii.unhexlify(sig_hex)
+
+assert secret_to_public(sk) == pk
+assert sign(sk, msg) == sig
+assert verify(pk, msg, sig)
+
+assert secret_to_public(sk[:31] + b'\x60') == pk
+assert secret_to_public(sk[:31] + b'0') != pk
+
+assert sign(sk, msg + b'0') != sig
+assert sign(sk[:31] + b'0', msg) != sig
+
+assert verify(pk, msg + b'0', sig) == False
+assert verify(pk[:31] + b'0', msg, sig) == False
+assert verify(pk, msg, sig[:63] + b'0') == False
+
+print("All tests passed.")
