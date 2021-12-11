@@ -27,88 +27,8 @@ def sqrt8k5(x,p):
 #Decode a hexadecimal string representation of the integer.
 def hexi(s): return int.from_bytes(bytes.fromhex(s),byteorder="big")
 
-#Rotate a word x by b places to the left.
-def rol(x,b): return ((x << b) | (x >> (64 - b))) & (2**64-1)
-
 #From little endian.
 def from_le(s): return int.from_bytes(s, byteorder="little")
-
-#Do the SHA-3 state transform on state s.
-def sha3_transform(s):
-    ROTATIONS = [0,1,62,28,27,36,44,6,55,20,3,10,43,25,39,41,45,15,\
-                 21,8,18,2,61,56,14]
-    PERMUTATION = [1,6,9,22,14,20,2,12,13,19,23,15,4,24,21,8,16,5,3,\
-                   18,17,11,7,10]
-    RC = [0x0000000000000001,0x0000000000008082,0x800000000000808a,\
-          0x8000000080008000,0x000000000000808b,0x0000000080000001,\
-          0x8000000080008081,0x8000000000008009,0x000000000000008a,\
-          0x0000000000000088,0x0000000080008009,0x000000008000000a,\
-          0x000000008000808b,0x800000000000008b,0x8000000000008089,\
-          0x8000000000008003,0x8000000000008002,0x8000000000000080,\
-          0x000000000000800a,0x800000008000000a,0x8000000080008081,\
-          0x8000000000008080,0x0000000080000001,0x8000000080008008]
-
-    for rnd in range(0,24):
-        #AddColumnParity (Theta)
-        c = [0]*5;
-        d = [0]*5;
-        for i in range(0,25): c[i%5]^=s[i]
-        for i in range(0,5): d[i]=c[(i+4)%5]^rol(c[(i+1)%5],1)
-        for i in range(0,25): s[i]^=d[i%5]
-        #RotateWords (Rho)
-        for i in range(0,25): s[i]=rol(s[i],ROTATIONS[i])
-        #PermuteWords (Pi)
-        t = s[PERMUTATION[0]]
-        for i in range(0,len(PERMUTATION)-1):
-            s[PERMUTATION[i]]=s[PERMUTATION[i+1]]
-        s[PERMUTATION[-1]]=t;
-        #NonlinearMixRows (Chi)
-        for i in range(0,25,5):
-            t=[s[i],s[i+1],s[i+2],s[i+3],s[i+4],s[i],s[i+1]]
-            for j in range(0,5): s[i+j]=t[j]^((~t[j+1])&(t[j+2]))
-        #AddRoundConstant (Iota)
-        s[0]^=RC[rnd]
-
-#Reinterpret octet array b to word array and XOR it to state s.
-def reinterpret_to_words_and_xor(s,b):
-    for j in range(0,len(b)//8):
-        s[j]^=from_le(b[8*j:][:8])
-
-#Reinterpret word array w to octet array and return it.
-def reinterpret_to_octets(w):
-    mp=bytearray()
-    for j in range(0,len(w)):
-        mp+=w[j].to_bytes(8,byteorder="little")
-    return mp
-
-#(semi-)generic SHA-3 implementation
-def sha3_raw(msg,r_w,o_p,e_b):
-    r_b=8*r_w
-    s=[0]*25
-    #Handle whole blocks.
-    idx=0
-    blocks=len(msg)//r_b
-    for i in range(0,blocks):
-        reinterpret_to_words_and_xor(s,msg[idx:][:r_b])
-        idx+=r_b
-        sha3_transform(s)
-    #Handle last block padding.
-    m=bytearray(msg[idx:])
-    m.append(o_p)
-    while len(m) < r_b: m.append(0)
-    m[len(m)-1]|=128
-    #Handle padded last block.
-    reinterpret_to_words_and_xor(s,m)
-    sha3_transform(s)
-    #Output.
-    out = bytearray()
-    while len(out)<e_b:
-        out+=reinterpret_to_octets(s[:r_w])
-        sha3_transform(s)
-    return out[:e_b]
-
-#Implementation of SHAKE256 functions.
-def shake256(msg,olen): return sha3_raw(msg,17,31,olen)
 
 #A (prime) field element.
 class Field:
@@ -506,7 +426,7 @@ def Ed448_inthash(data,ctx,hflag):
     if ctx is not None:
         if len(ctx) > 255: raise ValueError("Context too big")
         dompfx=b"SigEd448"+bytes([1 if hflag else 0,len(ctx)])+ctx
-    return shake256(dompfx+data,114)
+    return hashlib.shake_256(dompfx+data).digest(114)
 
 pEd448 = PureEdDSA({\
     "B":Edwards448Point.stdbase(),\
@@ -540,7 +460,7 @@ class EdDSA:
             ctx,self.__pflag)
 
 def Ed448ph_prehash(data,ctx):
-    return shake256(data,64)
+    return hashlib.shake_256(data).digest(64)
 
 #Our signature schemes.
 Ed25519 = EdDSA(pEd25519,None)
